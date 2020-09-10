@@ -11,12 +11,18 @@ class BreakerModule(mp_module.MPModule):
     programs try to issue commands.
 
     A 'breaker' keeps track of connections to programs like this, and when these overriding conditions arise it
-    disconnects them. 
+    disconnects them.
     """
+
     def __init__(self, mpstate):
-        super(BreakerModule, self).__init__(mpstate, "breaker", "breaker control", public=True)
+        super().__init__(
+            mpstate, "breaker", "breaker control", public=True
+        )
         self.add_command(
-            "breaker", self.handle_command, "breaker control", ["<list|add|remove|sysid>"]
+            "breaker",
+            self.handle_command,
+            "breaker control",
+            ["<list|add|remove|sysid>"],
         )
         self._devices = set()
 
@@ -84,7 +90,7 @@ class BreakerModule(mp_module.MPModule):
             )
             conn.mav.srcComponent = self.settings.source_component
         except Exception:
-            print(f"Breakder failed to connect to {device}")
+            print(f"Breaker failed to connect to {device}")
             return
         try:
             mp_util.child_fd_list_add(conn.port.fileno())
@@ -97,11 +103,54 @@ class BreakerModule(mp_module.MPModule):
         self._devices.add(device)
 
     def mavlink_packet(self, m):
-        # TODO: When we see an RTL, disconnect from the connected outputs.
-        pass
+        # This looks for fence violations, tripping the breaker if one is detected. 
+        if m.get_type() == 'FENCE_STATUS':
+            if m.breach_status == 1:
+                print('Fence breach detected. Disconnecting breaker.')
+                for device in self._devices:
+                    self.handle_remove(device)
 
-        # for device in self._devices:
-        #     self.handle_remove(device)
+        # TODO: Is there a more direct way of determining that we've entered RTL?
+
+
+BORING = {
+    "NAV_CONTROLLER_OUTPUT",
+    "RAW_IMU",
+    "TERRAIN_REPORT",
+    "SERVO_OUTPUT_RAW",
+    "GPS_RAW_INT",
+    "TIMESYNC",
+    "GLOBAL_POSITION_INT",
+    "MEMINFO",
+    "MISSION_ITEM_REACHED",
+    "RC_CHANNELS",
+    "EKF_STATUS_REPORT",
+    "SCALED_PRESSURE",
+    "VIBRATION",
+    "HOME_POSITION",
+    "SIMSTATE",
+    "BATTERY_STATUS",
+    "AHRS2",
+    "POSITION_TARGET_GLOBAL_INT",
+    "PARAM_VALUE",
+    "HWSTATUS",
+    "SCALED_IMU2",
+    "GPS_GLOBAL_ORIGIN",
+    "MISSION_CURRENT",
+    "VFR_HUD",
+    # "COMMAND_ACK",
+    "LOCAL_POSITION_NED",
+    "STATUSTEXT",
+    "ATTITUDE",
+    "SCALED_IMU3",
+    "SENSOR_OFFSETS",
+    "SYS_STATUS",
+    "AHRS",
+    "SYSTEM_TIME",
+    "HEARTBEAT",
+    "POWER_STATUS",
+    "FENCE_STATUS"
+}
 
 
 def init(mpstate):
